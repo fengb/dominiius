@@ -26,7 +26,16 @@ WUPS_USE_STORAGE(APP_NAME); // Unique id for the storage api
     Gets called ONCE when the plugin was loaded.
 **/
 INITIALIZE_PLUGIN() {
+    initLogging();
     engine_init();
+    deinitLogging();
+}
+
+/**
+    Gets called when the plugin will be unloaded.
+**/
+DEINITIALIZE_PLUGIN() {
+    engine_stop();
 }
 
 /**
