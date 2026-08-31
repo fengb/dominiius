@@ -9,7 +9,7 @@
 #include "mdns_ipv4_shim.h"
 
 static OSThread s_engine_thread;
-static uint8_t s_engine_thread_stack[65536]; // 64KB stack (adjust as needed)
+static uint8_t s_engine_thread_stack[16384]; // 16KB stack (adjust as needed)
 
 static bool s_engine_running = false;
 static OSEvent s_stop_event;
@@ -177,6 +177,10 @@ int engine_start() {
         OS_THREAD_ATTRIB_DETACHED // Attributes
     );
 
+#ifdef DEBUG
+    OSSetThreadStackUsage(&s_engine_thread);
+#endif
+
     if (success) {
         OSResumeThread(&s_engine_thread);
     }
@@ -187,5 +191,11 @@ int engine_start() {
 int engine_stop() {
     s_engine_running = false;
     OSSignalEvent(&s_stop_event);
+
+#ifdef DEBUG
+    DEBUG_FUNCTION_LINE_INFO("Max thread use: %d",
+                             OSCheckThreadStackUsage(&s_engine_thread));
+#endif
+
     return 0;
 }
