@@ -95,6 +95,30 @@ static int parse_hex(char c) {
     }
 }
 
+static int read_utf16hex(const char *read[], const char *eos) {
+    if (eos - (*read) < 4) {
+        return -1;
+    }
+
+    uint16_t values[4];
+
+    for (int i = 0; i < 4; i++) {
+        int val = parse_hex((*read)[i]);
+        if (val < 0) {
+            DEBUG_FUNCTION_LINE_INFO("Bad hexvalue '%.*s'", 4, *read);
+            return -1;
+        }
+        values[i] = (uint16_t)val;
+    }
+
+    (*read) += 4;
+
+    return values[0] << 12 | //
+           values[1] << 8 |  //
+           values[2] << 4 |  //
+           values[3] << 0;
+}
+
 static ssize_t get_nickname(char out[], size_t size) {
     assert(size >= 11);
 
@@ -111,51 +135,22 @@ static ssize_t get_nickname(char out[], size_t size) {
     }
 
     const char *eof = file_buf + file_len;
-    int nick_len = eof - nickname_chunk;
-
     int c = 0;
-    uint16_t scratch = 0;
-    int i;
-    for (i = 0; i < nick_len; i++) {
-        int val = parse_hex(nickname_chunk[i]);
-        if (val < 0) {
-            break;
-        }
-
-        /* I think this is unncessary
-         * 4 successive shifts should remove the original value
-
-        if (i == 0) {
-            scratch = val;
-        }
-        */
-
-        scratch = scratch << 4 | val;
-
-        if (i % 4 == 3) {
-            if (scratch == 0) {
-                break;
-            }
-
-            out[c++] = IS_ALPHANUMERIC(scratch) ? (char)scratch : '-';
-
-            if (c >= size) {
-                DEBUG_FUNCTION_LINE_ERR(
-                    "Buffer out of space, out=%.*s scratch=%d c=%d, i=%d", c,
-                    out, scratch, c, i);
-                return -1;
-            }
+    while (true) {
+        int val = read_utf16hex(&nickname_chunk, eof);
+        if (val == 0) {
+            return c;
+        } else if (val < 0) {
+            DEBUG_FUNCTION_LINE_INFO("Nickname terminated early, out=%.*s c=%d",
+                                     c, out, c);
+            return -1;
+        } else if (c >= size) {
+            DEBUG_FUNCTION_LINE_ERR("Buffer out of space, out=%.*s", c, out);
+            return -1;
+        } else {
+            out[c++] = IS_ALPHANUMERIC(val) ? (char)val : '-';
         }
     }
-
-    if (i % 4 != 3) {
-        DEBUG_FUNCTION_LINE_ERR(
-            "I think this goofed, out=%.*s scratch=%d c=%d, i=%d", c, out,
-            scratch, c, i);
-        return -1;
-    }
-
-    return c;
 }
 
 ssize_t hostname_load(char buf[], size_t size) {
