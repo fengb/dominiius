@@ -28,9 +28,9 @@ static int query_callback(int sock, const struct sockaddr *from, size_t addrlen,
         return 0;
     }
 
-    char scratch_buf[256];
+    char name_buf[256];
     mdns_string_t queried_name = mdns_string_extract(
-        data, size, &name_offset, scratch_buf, sizeof(scratch_buf));
+        data, size, &name_offset, name_buf, sizeof(name_buf));
 
     if (queried_name.length != s_machine_name.length ||
         strncasecmp(queried_name.str, s_machine_name.str,
@@ -38,24 +38,25 @@ static int query_callback(int sock, const struct sockaddr *from, size_t addrlen,
         return 0;
     }
 
-    mdns_record_t answer = {.name = s_machine_name,
+    mdns_record_t answer = {.name = queried_name,
                             .type = MDNS_RECORDTYPE_A,
                             .rclass = 0,
                             .ttl = 120,
                             .data = {.a = {.addr = s_local_ip}}};
 
+    char answer_buf[256];
     if (rclass & MDNS_UNICAST_RESPONSE) {
         DEBUG_FUNCTION_LINE_INFO(
-            "%.*s => %s", s_machine_name.length, s_machine_name.str,
+            "%.*s => %s", queried_name.length, queried_name.str,
             inet_ntoa(((struct sockaddr_in *)from)->sin_addr));
-        mdns_query_answer_unicast(sock, from, addrlen, scratch_buf,
-                                  sizeof(scratch_buf), query_id, rtype,
+        mdns_query_answer_unicast(sock, from, addrlen, answer_buf,
+                                  sizeof(answer_buf), query_id, rtype,
                                   queried_name.str, queried_name.length, answer,
                                   NULL, 0, NULL, 0);
     } else {
-        DEBUG_FUNCTION_LINE_INFO("%.*s => multicast", s_machine_name.length,
-                                 s_machine_name.str);
-        mdns_query_answer_multicast(sock, scratch_buf, sizeof(scratch_buf),
+        DEBUG_FUNCTION_LINE_INFO("%.*s => multicast", queried_name.length,
+                                 queried_name.str);
+        mdns_query_answer_multicast(sock, answer_buf, sizeof(answer_buf),
                                     answer, NULL, 0, NULL, 0);
     }
 
