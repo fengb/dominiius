@@ -1,3 +1,4 @@
+#include <coreinit/event.h>
 #include <coreinit/thread.h>
 #include <coreinit/time.h>
 #include <errno.h>
@@ -7,7 +8,11 @@
 #include "logger.h"
 #include "mdns_ipv4_shim.h"
 
+static OSThread s_engine_thread;
+static uint8_t s_engine_thread_stack[16384]; // 16KB stack (adjust as needed)
+
 static bool s_engine_running = false;
+static OSEvent s_stop_event;
 
 static struct sockaddr_in s_local_ip;
 
@@ -110,7 +115,7 @@ static int engine_serve(int sock) {
         case EWOULDBLOCK:
             // case EAGAIN: // dupe of EWOULDBLOCK within Wii U
             // Timeout / no data yet
-            OSSleepTicks(OSMillisecondsToTicks(50));
+            OSWaitEventWithTimeout(&s_stop_event, OSMillisecondsToTicks(50));
             continue;
         default:
             DEBUG_FUNCTION_LINE_ERR("Listen errno: %d", errno);
@@ -122,7 +127,32 @@ static int engine_serve(int sock) {
     return 0;
 }
 
-int engine_start(int argc, const char **argv) {
+static int engine_main(int argc, const char **argv) {
+    s_engine_running = true;
+    unsigned int backoff = 0;
+
+    while (s_engine_running) {
+        int sock = engine_connect();
+        if (sock < 0) {
+            OSWaitEventWithTimeout(&s_stop_event,
+                                   OSSecondsToTicks(1ULL << backoff));
+            backoff += (backoff < 6);
+            continue;
+        }
+
+        int res = engine_serve(sock);
+        mdns_socket_close(sock);
+        backoff = 0;
+        OSWaitEventWithTimeout(&s_stop_event, OSSecondsToTicks(1ULL));
+    }
+
+    s_engine_running = false;
+    return 0;
+}
+
+int engine_init() {
+    OSInitEvent(&s_stop_event, FALSE, OS_EVENT_MODE_MANUAL);
+
     ssize_t len = hostname_load(s_name_buf, sizeof(s_name_buf));
     if (len <= 0) {
         DEBUG_FUNCTION_LINE_ERR("Cannot load hostname?");
@@ -131,31 +161,42 @@ int engine_start(int argc, const char **argv) {
     s_machine_name.length = len;
     DEBUG_FUNCTION_LINE_INFO("Hostname: %.*s", len, s_machine_name.str);
 
-    s_engine_running = true;
-    unsigned int backoff = 0;
+    return 0;
+}
 
-    while (s_engine_running) {
-        int sock = engine_connect();
-        if (sock < 0) {
-            OSSleepTicks(OSSecondsToTicks(1ULL << backoff));
-            backoff += (backoff < 6);
-            continue;
-        }
+int engine_start() {
+    OSResetEvent(&s_stop_event);
 
-        int res = engine_serve(sock);
-        if (fcntl(sock, F_GETFL) >= 0) {
-            // Close the socket if it's still alive
-            mdns_socket_close(sock);
-        }
-        backoff = 0;
-        OSSleepTicks(OSSecondsToTicks(1ULL));
+    bool success = OSCreateThread(
+        &s_engine_thread,                                      // Thread object
+        engine_main,                                           // Entry function
+        0,                                                     // argc
+        NULL,                                                  // argv
+        s_engine_thread_stack + sizeof(s_engine_thread_stack), // Stack top
+        sizeof(s_engine_thread_stack),                         // Stack size
+        16, // Priority (lower number = higher priority, 16 is safe)
+        OS_THREAD_ATTRIB_DETACHED // Attributes
+    );
+
+#ifdef DEBUG
+    OSSetThreadStackUsage(&s_engine_thread);
+#endif
+
+    if (success) {
+        OSResumeThread(&s_engine_thread);
     }
 
-    s_engine_running = false;
     return 0;
 }
 
 int engine_stop() {
     s_engine_running = false;
+    OSSignalEvent(&s_stop_event);
+
+#ifdef DEBUG
+    DEBUG_FUNCTION_LINE_INFO("Max thread use: %d",
+                             OSCheckThreadStackUsage(&s_engine_thread));
+#endif
+
     return 0;
 }

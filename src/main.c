@@ -1,11 +1,7 @@
-#include <coreinit/thread.h>
 #include <wups.h>
 
 #include "engine.h"
 #include "logger.h"
-
-static OSThread s_mdns_thread;
-static uint8_t s_mdns_thread_stack[65536]; // 64KB stack (adjust as needed)
 
 /**
     Mandatory plugin information.
@@ -27,30 +23,33 @@ WUPS_USE_WUT_DEVOPTAB();    // Use the wut devoptabs
 WUPS_USE_STORAGE(APP_NAME); // Unique id for the storage api
 
 /**
+    Gets called ONCE when the plugin was loaded.
+**/
+INITIALIZE_PLUGIN() {
+    initLogging();
+    engine_init();
+    deinitLogging();
+}
+
+/**
+    Gets called when the plugin will be unloaded.
+**/
+DEINITIALIZE_PLUGIN() {
+    engine_stop();
+}
+
+/**
     Gets called when an application starts.
 **/
 ON_APPLICATION_START() {
     initLogging();
-    bool success = OSCreateThread(
-        &s_mdns_thread,                                    // Thread object
-        engine_start,                                      // Entry function
-        0,                                                 // argc
-        NULL,                                              // argv
-        s_mdns_thread_stack + sizeof(s_mdns_thread_stack), // Stack top
-        sizeof(s_mdns_thread_stack),                       // Stack size
-        16, // Priority (lower number = higher priority, 16 is safe)
-        OS_THREAD_ATTRIB_DETACHED // Attributes
-    );
-
-    if (success) {
-        OSResumeThread(&s_mdns_thread);
-    }
+    engine_start();
 }
 
 /**
- * Gets called when an application actually ends
- */
-ON_APPLICATION_ENDS() {
+    Gets called when an application request to exit.
+**/
+ON_APPLICATION_REQUESTS_EXIT() {
     engine_stop();
     deinitLogging();
 }
