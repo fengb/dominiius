@@ -8,6 +8,8 @@
 #include "logger.h"
 #include "mdns_ipv4_shim.h"
 
+#define LIVENESS_CHECK OSSecondsToTicks(5 * 60)
+
 static OSThread s_engine_thread;
 static uint8_t s_engine_thread_stack[16384]; // 16KB stack (adjust as needed)
 
@@ -101,6 +103,7 @@ static int engine_connect() {
 }
 
 static int engine_serve(int sock) {
+    OSTime last_mdns = OSGetSystemTime();
     while (s_engine_running) {
         char recv_buf[1024]; // Max supported size is tested to be 1478
 
@@ -108,13 +111,18 @@ static int engine_serve(int sock) {
         size_t records = mdns_socket_listen(sock, recv_buf, sizeof(recv_buf),
                                             query_callback, NULL);
         if (records > 0) {
+            last_mdns = OSGetSystemTime();
             continue;
         }
 
         switch (errno) {
-        case EWOULDBLOCK:
             // case EAGAIN: // dupe of EWOULDBLOCK within Wii U
-            // Timeout / no data yet
+        case EWOULDBLOCK: // Socket has no data
+            if (OSGetSystemTime() - last_mdns > LIVENESS_CHECK) {
+                // mDNS/UDP might not surface a dead network to a listening
+                // socket, so treat prolonged silence as disconnected.
+                return -2;
+            }
             OSWaitEventWithTimeout(&s_stop_event, OSMillisecondsToTicks(50));
             continue;
         default:
