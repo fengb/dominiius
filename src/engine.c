@@ -107,17 +107,17 @@ static int engine_serve(int sock) {
     while (s_engine_running) {
         char recv_buf[1024]; // Max supported size is tested to be 1478
 
+        errno = 0;
         // mdns_socket_listen handles recvfrom and triggers the callback
-        size_t records = mdns_socket_listen(sock, recv_buf, sizeof(recv_buf),
-                                            query_callback, NULL);
-        if (records > 0) {
-            last_mdns = OSGetSystemTime();
-            continue;
-        }
+        mdns_socket_listen(sock, recv_buf, sizeof(recv_buf), query_callback,
+                           NULL);
 
         switch (errno) {
-            // case EAGAIN: // dupe of EWOULDBLOCK within Wii U
+        case 0:
+            last_mdns = OSGetSystemTime();
+            continue;
         case EWOULDBLOCK: // Socket has no data
+            // case EAGAIN: // dupe of EWOULDBLOCK within Wii U
             if (OSGetSystemTime() - last_mdns > LIVENESS_CHECK) {
                 // mDNS/UDP might not surface a dead network to a listening
                 // socket, so treat prolonged silence as disconnected.
