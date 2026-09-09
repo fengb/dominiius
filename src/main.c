@@ -8,7 +8,7 @@
     If not set correctly, the loader will refuse to use the plugin.
 **/
 WUPS_PLUGIN_NAME(APP_NAME);
-WUPS_PLUGIN_DESCRIPTION("Description");
+WUPS_PLUGIN_DESCRIPTION("Reach your Wii U using a .local domain");
 WUPS_PLUGIN_VERSION("v0.1");
 WUPS_PLUGIN_AUTHOR("fengb");
 WUPS_PLUGIN_LICENSE("MIT");
