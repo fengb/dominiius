@@ -23,7 +23,7 @@ BUILD		:=	build
 DIST		:=	dist
 SOURCES		:=	src
 DATA		:=	data
-INCLUDES	:=	include
+INCLUDES	:=	include vendor
 
 #-------------------------------------------------------------------------------
 # options for code generation
