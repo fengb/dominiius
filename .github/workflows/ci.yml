@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Build container
+        run: docker build --tag dominiius-build .
+
+      - name: Run make
+        run: docker run --volume "$GITHUB_WORKSPACE":/project dominiius-build make
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: dominiius.wps
+          path: dist/dominiius.wps
+          if-no-files-found: error
