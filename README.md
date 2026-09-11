@@ -2,8 +2,9 @@
 
 _Reach your Wii U using a `.local` domain_
 
-[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Releases](https://img.shields.io/github/v/release/fengb/dominiius?include_prereleases)](https://github.com/fengb/dominiius/releases)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Build status](https://img.shields.io/github/actions/workflow/status/fengb/dominiius/ci.yml?branch=main)](https://github.com/fengb/dominiius/actions/workflows/ci.yml?query=branch:main)
+[![Release](https://img.shields.io/github/v/release/fengb/dominiius?include_prereleases)](https://github.com/fengb/dominiius/releases)
 
 ---
 
