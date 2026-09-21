@@ -139,6 +139,9 @@ static ssize_t get_nickname(char out[], size_t size) {
     while (true) {
         int val = read_utf16hex(&nickname_chunk, eof);
         if (val == 0) {
+            while (c > 0 && out[c - 1] == '-') {
+                c--;
+            }
             return c;
         } else if (val < 0) {
             DEBUG_FUNCTION_LINE_INFO("Nickname terminated early, out=%.*s c=%d",
@@ -148,7 +151,10 @@ static ssize_t get_nickname(char out[], size_t size) {
             DEBUG_FUNCTION_LINE_ERR("Buffer out of space, out=%.*s", c, out);
             return -1;
         } else {
-            out[c++] = IS_ALPHANUMERIC(val) ? (char)val : '-';
+            char letter = IS_ALPHANUMERIC(val) ? (char)val : '-';
+            if (letter != '-' || c > 0) {
+                out[c++] = letter;
+            }
         }
     }
 }
