@@ -7,6 +7,7 @@
 #include "hostname.h"
 #include "logger.h"
 #include "mdns_ipv4_shim.h"
+#include "strutil.h"
 
 #define LIVENESS_CHECK OSSecondsToTicks(5 * 60)
 
@@ -19,7 +20,7 @@ static OSEvent s_stop_event;
 static struct sockaddr_in s_local_ip;
 
 static char s_name_buf[20];
-static mdns_string_t s_machine_name = {
+static strutil_t s_machine_name = {
     .str = s_name_buf,
     .length = 0,
 };
@@ -209,6 +210,4 @@ int engine_stop() {
     return 0;
 }
 
-struct mdns_string_t engine_get_machine_name(void) {
-    return s_machine_name;
-}
+strutil_t engine_get_machine_name(void) { return s_machine_name; }

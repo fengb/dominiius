@@ -5,15 +5,11 @@
 
 #include "engine.h"
 #include "logger.h"
-
-typedef struct mdns_string_t {
-    const char *str;
-    size_t length;
-} mdns_string_t;
+#include "strutil.h"
 
 WUPSConfigAPICallbackStatus
 ConfigMenuOpenedCallback(WUPSConfigCategoryHandle root) {
-    mdns_string_t machine_name = engine_get_machine_name();
+    strutil_t machine_name = engine_get_machine_name();
     char status_buf[64];
     snprintf(status_buf, sizeof(status_buf), "%.*s", machine_name.length,
              machine_name.str);
