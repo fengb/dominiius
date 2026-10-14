@@ -1,5 +1,6 @@
 #include <wups.h>
 
+#include "config.h"
 #include "engine.h"
 #include "logger.h"
 
@@ -27,6 +28,7 @@ WUPS_USE_STORAGE(APP_NAME); // Unique id for the storage api
 **/
 INITIALIZE_PLUGIN() {
     initLogging();
+    config_init();
     engine_init();
     deinitLogging();
 }

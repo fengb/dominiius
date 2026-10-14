@@ -208,3 +208,7 @@ int engine_stop() {
 
     return 0;
 }
+
+struct mdns_string_t engine_get_machine_name(void) {
+    return s_machine_name;
+}
