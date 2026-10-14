@@ -9,14 +9,14 @@
 
 WUPSConfigAPICallbackStatus
 ConfigMenuOpenedCallback(WUPSConfigCategoryHandle root) {
-    strutil_t machine_name = engine_get_machine_name();
-    char status_buf[64];
-    snprintf(status_buf, sizeof(status_buf), "%.*s", machine_name.length,
-             machine_name.str);
+    struct engine status = engine_status();
+    char info_buf[64];
+    snprintf(info_buf, sizeof(info_buf), "%.*s", status.host.length,
+             status.host.str);
 
-    if (WUPSConfigItemStub_AddToCategory(root, status_buf) !=
+    if (WUPSConfigItemStub_AddToCategory(root, info_buf) !=
         WUPSCONFIG_API_RESULT_SUCCESS) {
-        DEBUG_FUNCTION_LINE_ERR("Failed to add status item to root category");
+        DEBUG_FUNCTION_LINE_ERR("Failed to add info item to root category");
         return WUPSCONFIG_API_CALLBACK_RESULT_ERROR;
     }
 

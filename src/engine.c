@@ -4,26 +4,21 @@
 #include <errno.h>
 #include <nn/ac.h>
 
+#include "engine.h"
 #include "hostname.h"
 #include "logger.h"
 #include "mdns_ipv4_shim.h"
-#include "strutil.h"
 
 #define LIVENESS_CHECK OSSecondsToTicks(5 * 60)
 
 static OSThread s_engine_thread;
 static uint8_t s_engine_thread_stack[16384]; // 16KB stack (adjust as needed)
 
-static bool s_engine_running = false;
 static OSEvent s_stop_event;
 
-static struct sockaddr_in s_local_ip;
-
 static char s_name_buf[20];
-static strutil_t s_machine_name = {
-    .str = s_name_buf,
-    .length = 0,
-};
+
+static struct engine s_engine;
 
 static int query_callback(int sock, const struct sockaddr *from, size_t addrlen,
                           mdns_entry_type_t entry, uint16_t query_id,
@@ -40,9 +35,9 @@ static int query_callback(int sock, const struct sockaddr *from, size_t addrlen,
     mdns_string_t queried_name = mdns_string_extract(
         data, size, &name_offset, name_buf, sizeof(name_buf));
 
-    if (queried_name.length != s_machine_name.length ||
-        strncasecmp(queried_name.str, s_machine_name.str,
-                    s_machine_name.length) != 0) {
+    if (queried_name.length != s_engine.host.length ||
+        strncasecmp(queried_name.str, s_engine.host.str,
+                    s_engine.host.length) != 0) {
         return 0;
     }
 
@@ -50,7 +45,7 @@ static int query_callback(int sock, const struct sockaddr *from, size_t addrlen,
                             .type = MDNS_RECORDTYPE_A,
                             .rclass = 0,
                             .ttl = 120,
-                            .data = {.a = {.addr = s_local_ip}}};
+                            .data = {.a = {.addr = s_engine.local_ip}}};
 
     char answer_buf[256];
     if (rclass & MDNS_UNICAST_RESPONSE) {
@@ -86,14 +81,14 @@ static int engine_connect() {
         return -3;
     }
 
-    s_local_ip.sin_family = AF_INET;
-    s_local_ip.sin_port = htons(MDNS_PORT);
-    s_local_ip.sin_addr.s_addr = ip_address;
+    s_engine.local_ip.sin_family = AF_INET;
+    s_engine.local_ip.sin_port = htons(MDNS_PORT);
+    s_engine.local_ip.sin_addr.s_addr = ip_address;
 
-    DEBUG_FUNCTION_LINE_INFO("Address: %s:%d", inet_ntoa(s_local_ip.sin_addr),
-                             MDNS_PORT);
+    DEBUG_FUNCTION_LINE_INFO("Address: %s:%d",
+                             inet_ntoa(s_engine.local_ip.sin_addr), MDNS_PORT);
 
-    int sock = mdns_socket_open_ipv4(&s_local_ip);
+    int sock = mdns_socket_open_ipv4(&s_engine.local_ip);
     if (sock < 0) {
         DEBUG_FUNCTION_LINE_ERR("Failed to open IPv4 mDNS socket");
         return -4;
@@ -105,7 +100,7 @@ static int engine_connect() {
 
 static int engine_serve(int sock) {
     OSTime last_mdns = OSGetSystemTime();
-    while (s_engine_running) {
+    while (s_engine.running) {
         char recv_buf[1024]; // Max supported size is tested to be 1478
 
         errno = 0;
@@ -137,10 +132,10 @@ static int engine_serve(int sock) {
 }
 
 static int engine_main(int argc, const char **argv) {
-    s_engine_running = true;
+    s_engine.running = true;
     unsigned int backoff = 0;
 
-    while (s_engine_running) {
+    while (s_engine.running) {
         int sock = engine_connect();
         if (sock < 0) {
             OSWaitEventWithTimeout(&s_stop_event,
@@ -155,7 +150,7 @@ static int engine_main(int argc, const char **argv) {
         OSWaitEventWithTimeout(&s_stop_event, OSSecondsToTicks(1ULL));
     }
 
-    s_engine_running = false;
+    s_engine.running = false;
     return 0;
 }
 
@@ -167,8 +162,9 @@ int engine_init() {
         DEBUG_FUNCTION_LINE_ERR("Cannot load hostname?");
         return -1;
     }
-    s_machine_name.length = len;
-    DEBUG_FUNCTION_LINE_INFO("Hostname: %.*s", len, s_machine_name.str);
+    s_engine.host.str = s_name_buf;
+    s_engine.host.length = len;
+    DEBUG_FUNCTION_LINE_INFO("Hostname: %.*s", len, s_name_buf);
 
     return 0;
 }
@@ -199,7 +195,7 @@ int engine_start() {
 }
 
 int engine_stop() {
-    s_engine_running = false;
+    s_engine.running = false;
     OSSignalEvent(&s_stop_event);
 
 #ifdef DEBUG
@@ -210,4 +206,4 @@ int engine_stop() {
     return 0;
 }
 
-strutil_t engine_get_machine_name(void) { return s_machine_name; }
+struct engine engine_status(void) { return s_engine; }
