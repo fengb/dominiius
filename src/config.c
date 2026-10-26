@@ -1,5 +1,6 @@
 #include <stdio.h>
 
+#include <arpa/inet.h>
 #include <wups.h>
 #include <wups/config/WUPSConfigItemStub.h>
 
@@ -11,8 +12,14 @@ WUPSConfigAPICallbackStatus
 ConfigMenuOpenedCallback(WUPSConfigCategoryHandle root) {
     struct engine status = engine_status();
     char info_buf[64];
-    snprintf(info_buf, sizeof(info_buf), "%.*s", status.host.length,
-             status.host.str);
+
+    if (status.running) {
+        snprintf(info_buf, sizeof(info_buf), "%.*s [%s]", status.host.length,
+                 status.host.str, inet_ntoa(status.local_ip.sin_addr));
+    } else {
+        snprintf(info_buf, sizeof(info_buf), "%.*s [disconnected]",
+                 status.host.length, status.host.str);
+    }
 
     if (WUPSConfigItemStub_AddToCategory(root, info_buf) !=
         WUPSCONFIG_API_RESULT_SUCCESS) {
